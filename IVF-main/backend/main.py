@@ -43,6 +43,8 @@ from applications.accountant import (
     DailyReport, WeeklyReport, MonthlyReport
 )
 
+from applications.reminder import start_reminder_scheduler   # ← NEW
+
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
@@ -63,6 +65,11 @@ def create_app():
     return app, api
 
 app, api = create_app()
+
+# ── Start reminder scheduler (only in the main process, not the reloader) ──
+import os as _os
+if not app.debug or _os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+    start_reminder_scheduler(app)
 api.add_resource(Login, '/login')   # Resulting URL: /api/v1/login
 api.add_resource(Logout, '/logout') # Resulting URL: /api/v1/logout
 #api.add_resource(Register, '/register')

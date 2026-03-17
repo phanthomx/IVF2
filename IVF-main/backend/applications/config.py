@@ -33,3 +33,18 @@ class Config:
     CACHE_REDIS_HOST = 'localhost'
     CACHE_REDIS_PORT = 6379
     CACHE_REDIS_DB = 0
+    
+    
+    
+    MAIL_SERVER   = 'smtp.gmail.com'
+    MAIL_PORT     = 587
+    MAIL_USE_TLS  = True
+    MAIL_USERNAME = 'ivfclinic6@gmail.com'
+    MAIL_PASSWORD = 'szrq uqxh ehbw pqge'
+    MAIL_DEFAULT_SENDER = ('Ivy Clinic', 'ivfclinic6@gmail.com')
+        
+    
+    
+    
+    
+    

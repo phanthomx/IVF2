@@ -317,6 +317,13 @@ class PatientBookAppointment(Resource):
         )
         db.session.commit()
 
+        # Send confirmation email
+        try:
+            from flask import current_app
+            send_booking_confirmation(current_app._get_current_object(), patient, doctor, appointment)
+        except Exception as e:
+            current_app.logger.error(f"[Booking] Confirmation email failed for {patient.email}: {e}")
+
         return {
             "message":        "Appointment booked successfully",
             "appointment_id": appointment.id
@@ -381,3 +388,126 @@ class PatientPrescription(Resource):
                 "content":        prescription.verified_content,
             }
         }, 200
+
+
+# ── Booking Confirmation Email ─────────────────────────────────────────────
+
+def send_booking_confirmation(app, patient, doctor, appointment):
+    """
+    Sends a styled HTML booking confirmation email to the patient
+    immediately after a successful appointment booking.
+    """
+    from flask_mail import Message
+
+    date_str  = appointment.date.strftime('%A, %d %B %Y')
+    start_str = appointment.start_time.strftime('%I:%M %p')
+    end_str   = appointment.end_time.strftime('%I:%M %p')
+    stage_str = appointment.stage_at_visit or patient.current_cycle_stage or '—'
+
+    msg = Message(
+        subject="✅ Appointment Confirmed — Ivy Clinic",
+        recipients=[patient.email],
+        html=_confirmation_html(patient, doctor, appointment, date_str, start_str, end_str, stage_str),
+        body=_confirmation_text(patient, doctor, appointment, date_str, start_str, end_str, stage_str)
+    )
+    app.mail.send(msg)
+
+
+def _confirmation_html(patient, doctor, appointment, date_str, start_str, end_str, stage_str):
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"/></head>
+<body style="margin:0;padding:0;background:#f0f5f9;font-family:'Segoe UI',Arial,sans-serif;">
+  <div style="max-width:560px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+
+    <!-- Header -->
+    <div style="background:#0a7ea4;padding:28px 32px;">
+      <div style="font-size:22px;font-weight:700;color:#fff;">Ivy Clinic</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.75);margin-top:2px;letter-spacing:0.08em;text-transform:uppercase;">IVF &amp; Reproductive Medicine</div>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:32px;">
+      <div style="font-size:32px;margin-bottom:8px;">✅</div>
+      <h2 style="font-size:20px;font-weight:700;color:#1a2535;margin:0 0 6px;">Appointment <span style="color:#059669;">Confirmed</span></h2>
+      <p style="font-size:14px;color:#64748b;margin:0 0 24px;">
+        Hi {patient.name.split()[0]}, your appointment has been successfully booked. Here are your details:
+      </p>
+
+      <!-- Appointment card -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px;margin-bottom:24px;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="padding:9px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;width:130px;">Date</td>
+            <td style="padding:9px 0;font-size:14px;font-weight:600;color:#1a2535;">{date_str}</td>
+          </tr>
+          <tr style="border-top:1px solid #f1f5f9;">
+            <td style="padding:9px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;">Time</td>
+            <td style="padding:9px 0;font-size:14px;font-weight:600;color:#0a7ea4;">{start_str} – {end_str}</td>
+          </tr>
+          <tr style="border-top:1px solid #f1f5f9;">
+            <td style="padding:9px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;">Doctor</td>
+            <td style="padding:9px 0;font-size:14px;font-weight:600;color:#1a2535;">Dr. {doctor.name}
+              <div style="font-size:12px;color:#94a3b8;font-weight:400;margin-top:2px;">{doctor.specialization or ''}</div>
+            </td>
+          </tr>
+          <tr style="border-top:1px solid #f1f5f9;">
+            <td style="padding:9px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;">IVF Stage</td>
+            <td style="padding:9px 0;">
+              <span style="background:#eff9fc;color:#0a7ea4;border:1px solid #bae6fd;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;">{stage_str}</span>
+            </td>
+          </tr>
+          <tr style="border-top:1px solid #f1f5f9;">
+            <td style="padding:9px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;">Service ID</td>
+            <td style="padding:9px 0;font-size:13px;font-family:monospace;color:#64748b;">{patient.service_id}</td>
+          </tr>
+          <tr style="border-top:1px solid #f1f5f9;">
+            <td style="padding:9px 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;">Booking Ref</td>
+            <td style="padding:9px 0;font-size:13px;font-family:monospace;color:#7c3aed;">#APT-{str(appointment.id).zfill(5)}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Notice -->
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:14px 16px;margin-bottom:20px;">
+        <p style="font-size:13px;color:#92400e;margin:0;line-height:1.6;">
+          📋 <strong>Please arrive 10 minutes early.</strong> Bring any previous reports or prescriptions if this is a follow-up visit.
+        </p>
+      </div>
+
+      <p style="font-size:13px;color:#94a3b8;line-height:1.6;margin:0;">
+        You will receive another reminder 1 hour before your appointment. To cancel, please visit the patient portal or contact the clinic.
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 32px;text-align:center;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;">
+        Ivy Clinic &nbsp;·&nbsp; This is an automated confirmation. Please do not reply to this email.
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>"""
+
+
+def _confirmation_text(patient, doctor, appointment, date_str, start_str, end_str, stage_str):
+    return f"""Hi {patient.name},
+
+Your appointment at Ivy Clinic has been confirmed.
+
+  Booking Ref : #APT-{str(appointment.id).zfill(5)}
+  Date        : {date_str}
+  Time        : {start_str} – {end_str}
+  Doctor      : Dr. {doctor.name}
+  IVF Stage   : {stage_str}
+  Service ID  : {patient.service_id}
+
+Please arrive 10 minutes early.
+You will receive a reminder 1 hour before your appointment.
+
+To cancel, visit the patient portal or contact the clinic directly.
+
+— Ivy Clinic
+"""

@@ -331,7 +331,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import axios from 'axios';
 import { useAuthStore } from '@/stores/auth_store';
 import { useMessageStore } from '@/stores/message_store';
@@ -719,7 +719,53 @@ watch(activeTab, (tab) => {
   if (tab === 'book')     fetchDoctors();
 });
 
-onMounted(() => { fetchProfile(); });
+// ── Browser Notification Reminder ─────────────────────────────────────────
+// Asks for permission once, then checks every 5 min whether any upcoming
+// appointment is within the next 55–65 minutes and fires a notification.
+let _notifInterval = null;
+const _notifiedIds  = new Set();
+
+const requestNotificationPermission = async () => {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+};
+
+const checkUpcomingNotifications = () => {
+  if (Notification.permission !== 'granted') return;
+  if (!upcoming.value.length) return;
+
+  const now      = new Date();
+  const windowLo = new Date(now.getTime() + 55 * 60 * 1000);
+  const windowHi = new Date(now.getTime() + 65 * 60 * 1000);
+
+  for (const appt of upcoming.value) {
+    if (_notifiedIds.has(appt.appointment_id)) continue;
+
+    const apptTime = new Date(`${appt.date}T${appt.start_time}:00`);
+    if (apptTime >= windowLo && apptTime <= windowHi) {
+      new Notification('⏰ Ivy Clinic — Appointment Reminder', {
+        body: `Your appointment with Dr. ${appt.doctor_name} is in 1 hour (${appt.start_time}).`,
+        icon: '/favicon.ico',
+        tag:  `appt-${appt.appointment_id}`   // prevents duplicate popups
+      });
+      _notifiedIds.add(appt.appointment_id);
+    }
+  }
+};
+
+onMounted(async () => {
+  fetchProfile();
+  await requestNotificationPermission();
+  // Fire once immediately, then every 5 minutes
+  checkUpcomingNotifications();
+  _notifInterval = setInterval(checkUpcomingNotifications, 5 * 60 * 1000);
+});
+
+onUnmounted(() => {
+  if (_notifInterval) clearInterval(_notifInterval);
+});
 </script>
 
 <style scoped>
