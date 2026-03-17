@@ -226,3 +226,194 @@ class MonthlyReport(Resource):
             })
 
         return {"monthly": months_data}, 200
+
+
+
+# ── Chart Data ────────────────────────────────────────────────────────────────
+class ChartData(Resource):
+    """
+    Returns all chart data for the Reports tab in one request.
+    GET /api/v1/accountant/charts/<period>   period = daily | weekly | monthly
+    """
+    @auth_token_required
+    def get(self, period):
+        err = accountant_only()
+        if err: return err
+
+        if period not in ('daily', 'weekly', 'monthly'):
+            return {"message": "period must be daily, weekly, or monthly"}, 400
+
+        today = date.today()
+
+        # ── 1. Build time-series buckets (bar + line charts) ──────────────────
+        buckets = []
+
+        if period == 'daily':
+            for i in range(29, -1, -1):
+                day  = today - timedelta(days=i)
+                invs = Invoice.query.filter(func.date(Invoice.date_generated) == day).all()
+                buckets.append({
+                    "label":   day.strftime('%b %d'),
+                    "revenue": sum(inv.amount for inv in invs if inv.status == 'paid'),
+                    "pending": sum(inv.amount for inv in invs if inv.status == 'pending'),
+                    "total":   sum(inv.amount for inv in invs),
+                    "count":   len(invs),
+                })
+
+        elif period == 'weekly':
+            for i in range(11, -1, -1):
+                w_start = today - timedelta(weeks=i, days=today.weekday())
+                w_end   = w_start + timedelta(days=6)
+                invs    = Invoice.query.filter(
+                    func.date(Invoice.date_generated) >= w_start,
+                    func.date(Invoice.date_generated) <= w_end
+                ).all()
+                buckets.append({
+                    "label":   w_start.strftime('%b %d'),
+                    "revenue": sum(inv.amount for inv in invs if inv.status == 'paid'),
+                    "pending": sum(inv.amount for inv in invs if inv.status == 'pending'),
+                    "total":   sum(inv.amount for inv in invs),
+                    "count":   len(invs),
+                })
+
+        elif period == 'monthly':
+            for i in range(11, -1, -1):
+                month = today.month - i
+                year  = today.year
+                while month <= 0:
+                    month += 12
+                    year  -= 1
+                invs = Invoice.query.filter(
+                    func.strftime('%Y', Invoice.date_generated) == str(year),
+                    func.strftime('%m', Invoice.date_generated) == f'{month:02d}'
+                ).all()
+                buckets.append({
+                    "label":   datetime(year, month, 1).strftime('%b %Y'),
+                    "revenue": sum(inv.amount for inv in invs if inv.status == 'paid'),
+                    "pending": sum(inv.amount for inv in invs if inv.status == 'pending'),
+                    "total":   sum(inv.amount for inv in invs),
+                    "count":   len(invs),
+                })
+
+        # ── 2. Donut — period-scoped paid vs pending totals ───────────────────
+        period_revenue = sum(b["revenue"] for b in buckets)
+        period_pending = sum(b["pending"] for b in buckets)
+
+        donut = {
+            "labels": ["Collected", "Pending"],
+            "values": [period_revenue, period_pending],
+        }
+
+        # ── 3. Service code breakdown — all-time horizontal bar ───────────────
+        all_invs  = Invoice.query.all()
+        code_map  = {}
+        for inv in all_invs:
+            c = inv.service_code or "Unknown"
+            if c not in code_map:
+                code_map[c] = {"revenue": 0.0, "pending": 0.0}
+            if inv.status == 'paid':
+                code_map[c]["revenue"] += inv.amount
+            elif inv.status == 'pending':
+                code_map[c]["pending"] += inv.amount
+
+        sorted_codes = sorted(
+            code_map.items(),
+            key=lambda x: x[1]["revenue"] + x[1]["pending"],
+            reverse=True
+        )[:8]
+
+        service_codes = {
+            "labels":  [c for c, _ in sorted_codes],
+            "revenue": [v["revenue"] for _, v in sorted_codes],
+            "pending": [v["pending"] for _, v in sorted_codes],
+        }
+
+        # ── 4. KPI summary ────────────────────────────────────────────────────
+        period_total = period_revenue + period_pending
+        kpi = {
+            "period_revenue":    period_revenue,
+            "period_pending":    period_pending,
+            "period_count":      sum(b["count"] for b in buckets),
+            "collection_rate":   round((period_revenue / period_total * 100), 1) if period_total else 0,
+        }
+
+        return {
+            "period":        period,
+            "kpi":           kpi,
+            "timeseries":    buckets,   # → bar chart + line chart
+            "donut":         donut,     # → donut chart
+            "service_codes": service_codes,  # → horizontal bar
+        }, 200
+        
+# ── Doctor-Wise Analysis ───────────────────────────────────────────────────────
+class DoctorAnalysis(Resource):
+    """
+    Returns per-doctor revenue breakdown for the Reports tab.
+    GET /api/v1/accountant/charts/doctors
+    Optional query param: ?period=daily|weekly|monthly  (defaults to all-time)
+    """
+    @auth_token_required
+    def get(self):
+        err = accountant_only()
+        if err: return err
+
+        period = request.args.get('period', 'all')
+
+        # ── Date range filter ─────────────────────────────────────────────────
+        today = date.today()
+        date_from = None
+
+        if period == 'daily':
+            date_from = today - timedelta(days=30)
+        elif period == 'weekly':
+            date_from = today - timedelta(weeks=12)
+        elif period == 'monthly':
+            date_from = today - timedelta(days=365)
+        # 'all' → no date filter
+
+        # ── Pull all doctors ──────────────────────────────────────────────────
+        from applications.models import Doctor
+        doctors = Doctor.query.all()
+
+        doctor_rows = []
+
+        for doc in doctors:
+            # Get all appointments for this doctor
+            appt_query = Appointment.query.filter_by(doctor_id=doc.id)
+            if date_from:
+                appt_query = appt_query.filter(Appointment.date >= date_from)
+            appt_ids = [a.id for a in appt_query.all()]
+
+            if not appt_ids:
+                continue  # skip doctors with no appointments in range
+
+            # Get invoices for those appointments
+            inv_query = Invoice.query.filter(Invoice.appointment_id.in_(appt_ids))
+            invoices  = inv_query.all()
+
+            if not invoices:
+                continue  # skip doctors with no invoices
+
+            revenue  = sum(i.amount for i in invoices if i.status == 'paid')
+            pending  = sum(i.amount for i in invoices if i.status == 'pending')
+            total    = revenue + pending
+            col_rate = round((revenue / total * 100), 1) if total else 0
+
+            doctor_rows.append({
+                "doctor_id":       doc.id,
+                "doctor_name":     doc.name,
+                "specialization":  doc.specialization or "General",
+                "revenue":         revenue,
+                "pending":         pending,
+                "total_billed":    total,
+                "collection_rate": col_rate,
+                "session_count":   len(invoices),
+            })
+
+        # Sort by total billed descending
+        doctor_rows.sort(key=lambda x: x["total_billed"], reverse=True)
+
+        return {
+            "period":  period,
+            "doctors": doctor_rows,
+        }, 200

@@ -2,7 +2,23 @@
   <div id="app-layout">
     <nav class="navbar">
       <RouterLink :to="isAuthenticated ? `/${user.role}` : '/'" class="brand">
-        <span class="brand-icon">⚕</span> IVF Care
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="28" height="28">
+          <defs>
+            <radialGradient id="g" cx="50%" cy="60%" r="50%">
+              <stop offset="0%" stop-color="#f9a8d4"/>
+              <stop offset="100%" stop-color="#a855f7"/>
+            </radialGradient>
+          </defs>
+          <ellipse cx="50" cy="35" rx="10" ry="22" fill="url(#g)" opacity="0.95"/>
+          <ellipse cx="50" cy="35" rx="10" ry="22" fill="url(#g)" opacity="0.85" transform="rotate(-45 50 60)"/>
+          <ellipse cx="50" cy="35" rx="10" ry="22" fill="url(#g)" opacity="0.85" transform="rotate(-90 50 60)"/>
+          <ellipse cx="50" cy="35" rx="10" ry="22" fill="url(#g)" opacity="0.85" transform="rotate(45 50 60)"/>
+          <ellipse cx="50" cy="35" rx="10" ry="22" fill="url(#g)" opacity="0.85" transform="rotate(90 50 60)"/>
+          <circle cx="50" cy="60" r="7" fill="#fde68a"/>
+          <path d="M50 67 Q45 80 42 90" stroke="#22c55e" stroke-width="3" fill="none" stroke-linecap="round"/>
+          <path d="M50 75 Q55 72 60 74" stroke="#22c55e" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        </svg>
+        IVF Care
       </RouterLink>
 
       <div class="nav-links">
@@ -81,7 +97,6 @@ axios.interceptors.response.use(
 
 #app-layout { min-height: 100vh; font-family: 'DM Sans', sans-serif; background: #f0f5f9; }
 
-/* Navbar */
 .navbar {
   display: flex;
   justify-content: space-between;
@@ -102,7 +117,6 @@ axios.interceptors.response.use(
   text-decoration: none;
   color: #1a2535;
 }
-.brand-icon { color: #0a7ea4; font-size: 1.3rem; }
 
 .nav-links { display: flex; align-items: center; gap: 1rem; }
 
@@ -151,7 +165,6 @@ axios.interceptors.response.use(
 }
 .logout-btn:hover { background: #e11d48; color: #fff; }
 
-/* Flash */
 .flash {
   position: sticky;
   top: 0;

@@ -665,7 +665,7 @@ onMounted(() => {
 .pay-tag.pending    { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
 .pay-tag.paid       { background: #f0fdf4; color: #059669; border: 1px solid #a7f3d0; }
 .pay-tag.no_invoice { background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0; }
-.stage-tag { font-size: 0.72rem; color: #0a7ea4; background: #eff9fc; border: 1px solid #bae6fd; padding: 0.18rem 0.5rem; border-radius: 4px; }
+.stage-tag  { font-size: 0.72rem; color: #0a7ea4; background: #eff9fc; border: 1px solid #bae6fd; padding: 0.18rem 0.5rem; border-radius: 4px; }
 .walkin-tag { font-size: 0.72rem; color: #7c3aed; background: #f5f3ff; border: 1px solid #ddd6fe; padding: 0.18rem 0.5rem; border-radius: 4px; }
 .in-session-note { font-size: 0.72rem; color: #2563eb; font-weight: 600; }
 
@@ -673,12 +673,12 @@ onMounted(() => {
 .pay-toggle-row { display: flex; align-items: center; gap: 0.5rem; }
 
 /* Buttons */
-.add-btn  { background: #0a7ea4; color: #fff; border: none; padding: 0.65rem 1.2rem; border-radius: 7px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 0.84rem; cursor: pointer; transition: opacity 0.15s; }
+.add-btn  { background: #0a7ea4; color: #fff; border: none; padding: 0.65rem 1.2rem; border-radius: 7px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 0.84rem; cursor: pointer; transition: opacity 0.15s; white-space: nowrap; }
 .add-btn:hover { opacity: 0.88; }
 .add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.book-btn { background: #f0fdf4; color: #059669; border: 1px solid #a7f3d0; padding: 0.65rem 1.2rem; border-radius: 7px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 0.84rem; cursor: pointer; transition: all 0.15s; }
+.book-btn { background: #f0fdf4; color: #059669; border: 1px solid #a7f3d0; padding: 0.65rem 1.2rem; border-radius: 7px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 0.84rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
 .book-btn:hover { background: #059669; color: #fff; }
-.cancel-btn { background: transparent; color: #64748b; border: 1px solid #e2e8f0; padding: 0.65rem 1.2rem; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+.cancel-btn { background: transparent; color: #64748b; border: 1px solid #e2e8f0; padding: 0.65rem 1.2rem; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 0.82rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .cancel-btn:hover { border-color: #94a3b8; }
 .cancel-appt-btn { background: #fff1f2; color: #e11d48; border: 1px solid #fecdd3; padding: 0.28rem 0.7rem; border-radius: 5px; font-size: 0.73rem; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
 .cancel-appt-btn:hover { background: #e11d48; color: #fff; }
@@ -694,20 +694,57 @@ onMounted(() => {
 .empty    { padding: 2rem; text-align: center; color: #94a3b8; background: #fff; border-radius: 10px; border: 1px solid #e2e8f0; font-size: 0.84rem; }
 .empty-sm { padding: 0.75rem; text-align: center; color: #94a3b8; font-size: 0.8rem; }
 
-/* Modal */
-.overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 2000; }
-.modal { background: #fff; border-top: 3px solid #0a7ea4; border-radius: 12px; width: 580px; max-height: 90vh; overflow-y: auto; padding: 1.75rem; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
+/* ── MODAL ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+.modal {
+  background: #fff;
+  border-top: 3px solid #0a7ea4;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 580px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.75rem;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+  box-sizing: border-box;
+}
 .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; }
 .modal-head h2 { font-size: 1.05rem; font-weight: 700; margin: 0; }
 .close { background: none; border: none; font-size: 1.4rem; color: #94a3b8; cursor: pointer; }
 
-/* Form */
+/* ── FORM ── */
 .fields { display: flex; flex-direction: column; gap: 1rem; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.row4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+
+/* KEY FIX: 2×2 grid instead of 4-in-a-row so Blood Type never gets clipped */
+.row4 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
 .field { display: flex; flex-direction: column; gap: 0.3rem; position: relative; }
 .field label { font-size: 0.67rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #64748b; }
-.field input, .field select { background: #f8fafc; border: 1px solid #e2e8f0; color: #1a2535; padding: 0.65rem 0.85rem; border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 0.84rem; transition: border-color 0.15s; }
+.field input,
+.field select {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #1a2535;
+  padding: 0.65rem 0.85rem;
+  border-radius: 6px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.84rem;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+  width: 100%;
+}
 .field input:focus, .field select:focus { outline: none; border-color: #0a7ea4; background: #fff; }
 .field input::placeholder { color: #cbd5e1; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.25rem; padding-top: 1.1rem; border-top: 1px solid #f1f5f9; }

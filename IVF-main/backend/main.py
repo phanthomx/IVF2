@@ -12,9 +12,8 @@ from applications.database import db
 from applications.models import *
 from applications.user_datastore import user_datastore
 from create_initial_data import create_initial_data
-from applications.auth_api import Login, Logout, Register
+from applications.auth_api import Login, Logout
 from applications.admin import AdminDashboard, OnboardDoctor, AllUsers, RemoveDoctor, RemovePatient
-
 
 from applications.receptionist import (
     RegisterPatient, PatientList, DoctorList,
@@ -23,12 +22,10 @@ from applications.receptionist import (
     CancelAppointment, TogglePayment, ConfirmCashPayment
 )
 
-
-
 from applications.doctor import (
     DoctorQueue, PatientDetail, StartSession, CompleteSession,
     DoctorAvailability, DoctorPatients,
-    PrescriptionAICheck           # ← NEW
+    PrescriptionAICheck
 )
 
 from applications.patient import (
@@ -40,29 +37,36 @@ from applications.patient import (
 
 from applications.accountant import (
     BillingQueue, GenerateBill, InvoiceLedger,
-    DailyReport, WeeklyReport, MonthlyReport
+    DailyReport, WeeklyReport, MonthlyReport, DoctorAnalysis, ChartData
 )
 
-from applications.reminder import start_reminder_scheduler   # ← NEW
+from applications.reminder import start_reminder_scheduler
+
 
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # 1. Enhanced CORS (matching your reference for credentials & headers)
+    # CORS
     CORS(app, resources={r"/*": {
-    "origins": ["http://localhost:3000", "http://127.0.0.1:3000"],  # ✅ added localhost for React
-    "supports_credentials": True,
-    "allow_headers": ["Content-Type", "Authorization", "user-id", "Authentication-Token"],  # ✅ added
-    "methods": ["GET", "POST", "PUT", "PATCH","DELETE", "OPTIONS"]
-}})
+        "origins": ["http://localhost:8080", "http://127.0.0.1:8080"],
+        "supports_credentials": True,
+        "allow_headers": ["Content-Type", "Authorization", "user-id", "Authentication-Token"],
+        "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    }})
+
     db.init_app(app)
     api = Api(app, prefix='/api/v1')
 
+    # ✅ Security init AFTER db
     app.security = Security(app, user_datastore)
     app.mail = Mail(app)
 
+    # ✅ Remove Flask-Security's unauthorized handler so it doesn't intercept your /login
+    app.extensions['security'].unauthorized_callback = None
+
     return app, api
+
 
 app, api = create_app()
 
@@ -70,21 +74,20 @@ app, api = create_app()
 import os as _os
 if not app.debug or _os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
     start_reminder_scheduler(app)
-api.add_resource(Login, '/login')   # Resulting URL: /api/v1/login
-api.add_resource(Logout, '/logout') # Resulting URL: /api/v1/logout
-#api.add_resource(Register, '/register')
 
-#ADMIN
-api.add_resource(AdminDashboard, '/admin/dashboard')   # /api/v1/admin/dashboard
-api.add_resource(OnboardDoctor, '/admin/onboard-doctor')
-api.add_resource(AllUsers,     '/admin/users')                    # GET  /api/v1/admin/users
-api.add_resource(RemoveDoctor, '/admin/remove-doctor/<int:doctor_id>')  # DELETE /api/v1/admin/remove-doctor/5
-api.add_resource(RemovePatient, '/admin/remove-patient/<int:patient_id>') 
+# AUTH
+api.add_resource(Login,  '/login')
+api.add_resource(Logout, '/logout')
+# api.add_resource(Register, '/register')
 
+# ADMIN
+api.add_resource(AdminDashboard, '/admin/dashboard')
+api.add_resource(OnboardDoctor,  '/admin/onboard-doctor')
+api.add_resource(AllUsers,       '/admin/users')
+api.add_resource(RemoveDoctor,   '/admin/remove-doctor/<int:doctor_id>')
+api.add_resource(RemovePatient,  '/admin/remove-patient/<int:patient_id>')
 
-
-
-##RECEPTIONIST
+# RECEPTIONIST
 api.add_resource(RegisterPatient,    '/receptionist/register-patient')
 api.add_resource(PatientList,        '/receptionist/patients')
 api.add_resource(DoctorList,         '/receptionist/doctors')
@@ -97,17 +100,16 @@ api.add_resource(CancelAppointment,  '/receptionist/appointment/<int:appointment
 api.add_resource(TogglePayment,      '/receptionist/invoice/<int:invoice_id>/toggle-payment')
 api.add_resource(ConfirmCashPayment, '/receptionist/invoice/<int:invoice_id>/payment')
 
-
-##DOCTOR
+# DOCTOR
 api.add_resource(DoctorQueue,         '/doctor/queue/<string:target_date>')
 api.add_resource(PatientDetail,       '/doctor/patient/<int:patient_id>')
 api.add_resource(StartSession,        '/doctor/appointment/<int:appointment_id>/start')
 api.add_resource(CompleteSession,     '/doctor/appointment/<int:appointment_id>/complete')
 api.add_resource(DoctorAvailability,  '/doctor/availability')
 api.add_resource(DoctorPatients,      '/doctor/patients')
-api.add_resource(PrescriptionAICheck, '/doctor/prescription/ai-check')   # ← NEW
+api.add_resource(PrescriptionAICheck, '/doctor/prescription/ai-check')
 
-#PATIENT
+# PATIENT
 api.add_resource(PatientProfile,           '/patient/profile')
 api.add_resource(PatientHistory,           '/patient/history')
 api.add_resource(PatientInvoices,          '/patient/invoices')
@@ -116,18 +118,20 @@ api.add_resource(PatientAvailableSlots,    '/patient/slots/<int:doctor_id>/<stri
 api.add_resource(PatientBookAppointment,   '/patient/book-appointment')
 api.add_resource(PatientCancelAppointment, '/patient/appointment/<int:appointment_id>/cancel')
 api.add_resource(PatientPrescription,      '/patient/prescription/<int:appointment_id>')
-#ACCOUNTANT
+
+# ACCOUNTANT
 api.add_resource(BillingQueue,   '/accountant/billing-queue')
 api.add_resource(GenerateBill,   '/accountant/invoice/<int:invoice_id>/generate')
 api.add_resource(InvoiceLedger,  '/accountant/invoices')
 api.add_resource(DailyReport,    '/accountant/report/daily')
 api.add_resource(WeeklyReport,   '/accountant/report/weekly')
 api.add_resource(MonthlyReport,  '/accountant/report/monthly')
+api.add_resource(ChartData,      '/accountant/charts/<string:period>')
+api.add_resource(DoctorAnalysis, '/accountant/charts/doctors')
 
 db_path = os.path.join(app.root_path, 'applications', 'instance', 'database.sqlite3')
 
 if __name__ == '__main__':
-    # 2. Conditional Database Setup (only runs once)
     if not os.path.exists(db_path):
         with app.app_context():
             try:
@@ -138,6 +142,5 @@ if __name__ == '__main__':
                 print("Database initialized successfully.")
             except Exception as e:
                 print(f"Error initializing DB: {e}")
-    
-    # 3. Start Server on Port 5001 (matching your store's expectation)
-    app.run(debug=True, host='0.0.0.0', port=5001)
+
+    app.run(debug=True, host='0.0.0.0', port=5001, threaded=True)
