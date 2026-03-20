@@ -4,7 +4,7 @@ from flask_security import auth_token_required, current_user, hash_password
 from applications.database import db
 from applications.models import Patient, Doctor, Appointment, Invoice, Availability, Role
 from applications.audit_helper import log_action
-from flask import request
+from flask import request, current_app
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy import and_
@@ -295,6 +295,21 @@ class BookAppointment(Resource):
             endpoint='/api/v1/receptionist/book-appointment'
         )
         db.session.commit()
+
+        # ── Send confirmation email to patient ────────────────────────────
+        try:
+            from applications.patient import send_booking_confirmation
+            send_booking_confirmation(
+                current_app._get_current_object(),
+                patient,
+                doctor,
+                appointment
+            )
+        except Exception as e:
+            current_app.logger.error(
+                f"[Booking] Confirmation email failed for {patient.email}: {e}"
+            )
+        # ─────────────────────────────────────────────────────────────────
 
         return {
             "message":        "Appointment booked successfully",
